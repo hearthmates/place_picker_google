@@ -944,7 +944,17 @@ class PlacePickerState extends State<PlacePicker>
       {AutoCompleteItem? autoCompleteResult}) async {
     _isAnimating = true;
 
+    if (!mounted) {
+      _isAnimating = false;
+      return;
+    }
+
     final controller = await mapController.future;
+
+    if (!mounted) {
+      _isAnimating = false;
+      return;
+    }
 
     await controller.animateCamera(
       CameraUpdate.newCameraPosition(
