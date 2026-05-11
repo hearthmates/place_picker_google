@@ -21,7 +21,14 @@ class NearbyPlaceItem extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
         child: Row(
           children: <Widget>[
-            Image.network(nearbyPlace.icon!, width: 16),
+            if (nearbyPlace.icon != null)
+              Image.network(
+                nearbyPlace.icon!,
+                width: 16,
+                errorBuilder: (_, __, ___) => const Icon(Icons.place, size: 16),
+              )
+            else
+              const Icon(Icons.place, size: 16),
             const SizedBox(width: 24),
             Expanded(
               child: Text(

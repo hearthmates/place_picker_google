@@ -888,8 +888,8 @@ class PlacePickerState extends State<PlacePicker>
         ..text = prediction?['text']?['text'] ?? ''
         ..offset = startOffset
         ..length = endOffset - startOffset
-        ..mainText = prediction?['mainText']?['text']
-        ..secondaryText = prediction?['secondaryText']?['text'];
+        ..mainText = prediction?['structuredFormat']?['mainText']?['text']
+        ..secondaryText = prediction?['structuredFormat']?['secondaryText']?['text'];
 
       return RichSuggestion(
         autoCompleteItem: aci,
@@ -1472,7 +1472,7 @@ class PlacePickerState extends State<PlacePicker>
         for (Map<String, dynamic> item in places) {
           final nearbyPlace = NearbyPlace(
             name: item['displayName']?['text'],
-            icon: item['iconMaskBaseUri'],
+            icon: item['iconMaskBaseUri'] != null ? '${item['iconMaskBaseUri']}.png' : null,
             latLng: LatLng(
               item['location']['latitude'],
               item['location']['longitude'],
