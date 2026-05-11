@@ -10,6 +10,21 @@ import 'package:place_picker_google/src/services/google_maps_http_service.dart';
 class GoogleMapsPlacesService extends GoogleMapsHTTPService {
   static const _placesBaseUrl = 'https://places.googleapis.com/v1/places';
 
+  static const _autocompleteFieldMask =
+      'suggestions.placePrediction.placeId,'
+      'suggestions.placePrediction.text,'
+      'suggestions.placePrediction.structuredFormat.mainText,'
+      'suggestions.placePrediction.structuredFormat.secondaryText';
+
+  static const _nearbySearchFieldMask =
+      'places.id,places.displayName,places.location,'
+      'places.iconMaskBaseUri,places.iconBackgroundColor';
+
+  static const _defaultDetailFields =
+      'id,displayName,formattedAddress,location,addressComponents';
+
+  /// Maps legacy Places API field names to Places API (New) field names,
+  /// allowing callers to pass either form in the [details] `fields` parameter.
   static const _legacyToNewFieldNames = {
     'place_id': 'id',
     'name': 'displayName',
@@ -28,9 +43,6 @@ class GoogleMapsPlacesService extends GoogleMapsHTTPService {
     'icon': 'iconMaskBaseUri',
   };
 
-  static const _defaultDetailFields =
-      'id,displayName,formattedAddress,location,addressComponents';
-
   GoogleMapsPlacesService({
     super.apiKey,
     super.baseUrl,
@@ -44,6 +56,22 @@ class GoogleMapsPlacesService extends GoogleMapsHTTPService {
       if (apiHeaders != null) ...apiHeaders!,
       if (apiKey != null) 'X-Goog-Api-Key': apiKey!,
       if (fieldMask != null) 'X-Goog-FieldMask': fieldMask,
+    };
+  }
+
+  static Map<String, double> _latLngToJson(LatLng latLng) {
+    return {
+      'latitude': latLng.latitude,
+      'longitude': latLng.longitude,
+    };
+  }
+
+  static Map<String, dynamic> _buildCircle(LatLng center, num radius) {
+    return {
+      'circle': {
+        'center': _latLngToJson(center),
+        'radius': radius.toDouble(),
+      },
     };
   }
 
@@ -77,16 +105,8 @@ class GoogleMapsPlacesService extends GoogleMapsHTTPService {
     }
 
     if (location != null && radius != null) {
-      final circle = {
-        'circle': {
-          'center': {
-            'latitude': location.latitude,
-            'longitude': location.longitude,
-          },
-          'radius': radius.toDouble(),
-        },
-      };
-      body[strictBounds ? 'locationRestriction' : 'locationBias'] = circle;
+      final key = strictBounds ? 'locationRestriction' : 'locationBias';
+      body[key] = _buildCircle(location, radius);
     } else if (location != null) {
       developer.log(
         'location was provided without radius — locationBias will not be sent. '
@@ -96,10 +116,7 @@ class GoogleMapsPlacesService extends GoogleMapsHTTPService {
     }
 
     if (origin != null) {
-      body['origin'] = {
-        'latitude': origin.latitude,
-        'longitude': origin.longitude,
-      };
+      body['origin'] = _latLngToJson(origin);
     }
 
     if (types.isNotEmpty) {
@@ -124,12 +141,7 @@ class GoogleMapsPlacesService extends GoogleMapsHTTPService {
       }
     }
 
-    final headers = _buildHeaders(
-      fieldMask: 'suggestions.placePrediction.placeId,'
-          'suggestions.placePrediction.text,'
-          'suggestions.placePrediction.structuredFormat.mainText,'
-          'suggestions.placePrediction.structuredFormat.secondaryText',
-    );
+    final headers = _buildHeaders(fieldMask: _autocompleteFieldMask);
 
     return doPost('$_placesBaseUrl:autocomplete', jsonEncode(body),
         headers: headers);
@@ -144,15 +156,7 @@ class GoogleMapsPlacesService extends GoogleMapsHTTPService {
     String? language,
   }) async {
     final body = <String, dynamic>{
-      'locationRestriction': {
-        'circle': {
-          'center': {
-            'latitude': location.latitude,
-            'longitude': location.longitude,
-          },
-          'radius': radius.toDouble(),
-        },
-      },
+      'locationRestriction': _buildCircle(location, radius),
       'maxResultCount': 20,
     };
 
@@ -164,10 +168,7 @@ class GoogleMapsPlacesService extends GoogleMapsHTTPService {
       body['languageCode'] = language;
     }
 
-    final headers = _buildHeaders(
-      fieldMask:
-          'places.id,places.displayName,places.location,places.iconMaskBaseUri,places.iconBackgroundColor',
-    );
+    final headers = _buildHeaders(fieldMask: _nearbySearchFieldMask);
 
     return doPost('$_placesBaseUrl:searchNearby', jsonEncode(body),
         headers: headers);

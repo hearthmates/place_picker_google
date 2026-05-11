@@ -1489,7 +1489,7 @@ class PlacePickerState extends State<PlacePicker>
         }
       }
     } catch (e) {
-      ///
+      debugPrint('Error fetching nearby places: $e');
     }
   }
 

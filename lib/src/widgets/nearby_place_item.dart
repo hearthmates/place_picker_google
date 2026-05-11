@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:place_picker_google/src/entities/index.dart';
 
 class NearbyPlaceItem extends StatelessWidget {
+  static const _fallbackIcon = Icon(Icons.place, size: 16);
+
   final NearbyPlace nearbyPlace;
   final VoidCallback onTap;
   final TextStyle? nearbyPlaceStyle;
@@ -37,7 +39,7 @@ class NearbyPlaceItem extends StatelessWidget {
 
   Widget _buildIcon() {
     if (nearbyPlace.icon == null) {
-      return const Icon(Icons.place, size: 16);
+      return _fallbackIcon;
     }
 
     final iconImage = Image.network(
@@ -45,11 +47,11 @@ class NearbyPlaceItem extends StatelessWidget {
       width: 16,
       height: 16,
       color: Colors.white,
-      errorBuilder: (_, __, ___) => const Icon(Icons.place, size: 16),
+      errorBuilder: (_, __, ___) => _fallbackIcon,
     );
 
     final bgColor = _parseHexColor(nearbyPlace.iconBackgroundColor);
-    if (bgColor == null) return iconImage;
+    if (bgColor == null) return _fallbackIcon;
 
     return Container(
       width: 24,
@@ -65,10 +67,10 @@ class NearbyPlaceItem extends StatelessWidget {
 
   static Color? _parseHexColor(String? hex) {
     if (hex == null || hex.isEmpty) return null;
+    final digits = hex.startsWith('#') ? hex.substring(1) : hex;
     final buffer = StringBuffer();
-    if (hex.startsWith('#')) hex = hex.substring(1);
-    if (hex.length == 6) buffer.write('FF');
-    buffer.write(hex);
+    if (digits.length == 6) buffer.write('FF');
+    buffer.write(digits);
     final value = int.tryParse(buffer.toString(), radix: 16);
     return value != null ? Color(value) : null;
   }

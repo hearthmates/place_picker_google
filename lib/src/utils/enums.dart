@@ -21,21 +21,6 @@ enum SearchingState {
   searching,
 }
 
-enum PlacesAutocompleteStatus {
-  ok(status: "OK"),
-  zeroResults(status: "ZERO_RESULTS"),
-  invalidRequest(status: "INVALID_REQUEST"),
-  overQueryLimit(status: "OVER_QUERY_LIMIT"),
-  requestDenied(status: "REQUEST_DENIED"),
-  unknownError(status: "UNKNOWN_ERROR");
-
-  const PlacesAutocompleteStatus({
-    required this.status,
-  });
-
-  final String status;
-}
-
 enum PlacesDetailsStatus {
   ok(status: "OK"),
   zeroResults(status: "ZERO_RESULTS"),
@@ -52,17 +37,3 @@ enum PlacesDetailsStatus {
   final String status;
 }
 
-enum NearbySearchStatus {
-  ok(status: "OK"),
-  zeroResults(status: "ZERO_RESULTS"),
-  invalidRequest(status: "INVALID_REQUEST"),
-  overQueryLimit(status: "OVER_QUERY_LIMIT"),
-  requestDenied(status: "REQUEST_DENIED"),
-  unknownError(status: "UNKNOWN_ERROR");
-
-  const NearbySearchStatus({
-    required this.status,
-  });
-
-  final String status;
-}

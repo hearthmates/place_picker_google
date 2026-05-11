@@ -6,8 +6,7 @@ class GoogleAPIParameters {
   /// Session token for Google Places API
   final String? sessionToken;
 
-  /// Offset for pagination of results
-  /// offset: int,
+  @Deprecated('The Places API (New) does not support offset. This parameter is ignored.')
   final num? offset;
 
   /// Origin location for calculating distance from results
