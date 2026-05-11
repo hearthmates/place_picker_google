@@ -872,24 +872,21 @@ class PlacePickerState extends State<PlacePicker>
     }
 
     return suggestions.map((dynamic t) {
-      final prediction = t['placePrediction'];
-      final matches = prediction?['text']?['matches'] as List<dynamic>?;
-      final int startOffset =
-          matches != null && matches.isNotEmpty
-              ? (matches[0]['startOffset'] ?? 0) as int
-              : 0;
-      final int endOffset =
-          matches != null && matches.isNotEmpty
-              ? (matches[0]['endOffset'] ?? 0) as int
-              : 0;
+      final prediction = t['placePrediction'] as Map<String, dynamic>?;
+      final firstMatch = (prediction?['text']?['matches'] as List<dynamic>?)
+          ?.firstOrNull as Map<String, dynamic>?;
+      final startOffset = (firstMatch?['startOffset'] ?? 0) as int;
+      final endOffset = (firstMatch?['endOffset'] ?? 0) as int;
+      final structuredFormat =
+          prediction?['structuredFormat'] as Map<String, dynamic>?;
 
       final aci = AutoCompleteItem()
         ..id = prediction?['placeId']
         ..text = prediction?['text']?['text'] ?? ''
         ..offset = startOffset
         ..length = endOffset - startOffset
-        ..mainText = prediction?['structuredFormat']?['mainText']?['text']
-        ..secondaryText = prediction?['structuredFormat']?['secondaryText']?['text'];
+        ..mainText = structuredFormat?['mainText']?['text']
+        ..secondaryText = structuredFormat?['secondaryText']?['text'];
 
       return RichSuggestion(
         autoCompleteItem: aci,
@@ -1392,6 +1389,7 @@ class PlacePickerState extends State<PlacePicker>
         components: widget.googleAPIParameters.components,
         types: widget.googleAPIParameters.types,
         location: _geocodingResult?.latLng,
+        strictBounds: widget.googleAPIParameters.strictbounds,
       );
 
       if (response.statusCode != 200) {
@@ -1418,6 +1416,11 @@ class PlacePickerState extends State<PlacePicker>
     _clearOverlay();
 
     try {
+      if (autoCompleteResult.id == null) {
+        debugPrint('Cannot fetch details: place ID is null.');
+        return;
+      }
+
       final response = await googleMapsPlacesService.details(
         autoCompleteResult.id!,
         sessionToken: widget.googleAPIParameters.sessionToken ?? sessionToken,
@@ -1469,17 +1472,19 @@ class PlacePickerState extends State<PlacePicker>
       nearbyPlaces.clear();
 
       if (places != null) {
-        for (Map<String, dynamic> item in places) {
-          final nearbyPlace = NearbyPlace(
-            name: item['displayName']?['text'],
-            icon: item['iconMaskBaseUri'] != null ? '${item['iconMaskBaseUri']}.png' : null,
-            latLng: LatLng(
-              item['location']['latitude'],
-              item['location']['longitude'],
-            ),
-          );
+        for (final item in places.cast<Map<String, dynamic>>()) {
+          final iconBaseUri = item['iconMaskBaseUri'] as String?;
+          final location = item['location'] as Map<String, dynamic>?;
+          if (location == null) continue;
 
-          nearbyPlaces.add(nearbyPlace);
+          nearbyPlaces.add(NearbyPlace(
+            name: item['displayName']?['text'],
+            icon: iconBaseUri != null ? '$iconBaseUri.png' : null,
+            latLng: LatLng(
+              location['latitude'],
+              location['longitude'],
+            ),
+          ));
         }
       }
     } catch (e) {

@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:developer' as developer;
 
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:http/http.dart' as http;
@@ -7,6 +8,29 @@ import 'package:place_picker_google/src/entities/component.dart';
 import 'package:place_picker_google/src/services/google_maps_http_service.dart';
 
 class GoogleMapsPlacesService extends GoogleMapsHTTPService {
+  static const _placesBaseUrl = 'https://places.googleapis.com/v1/places';
+
+  static const _legacyToNewFieldNames = {
+    'place_id': 'id',
+    'name': 'displayName',
+    'formatted_address': 'formattedAddress',
+    'geometry': 'location',
+    'address_component': 'addressComponents',
+    'type': 'types',
+    'formatted_phone_number': 'nationalPhoneNumber',
+    'international_phone_number': 'internationalPhoneNumber',
+    'opening_hours': 'currentOpeningHours',
+    'website': 'websiteUri',
+    'url': 'googleMapsUri',
+    'rating': 'rating',
+    'user_ratings_total': 'userRatingCount',
+    'price_level': 'priceLevel',
+    'icon': 'iconMaskBaseUri',
+  };
+
+  static const _defaultDetailFields =
+      'id,displayName,formattedAddress,location,addressComponents';
+
   GoogleMapsPlacesService({
     super.apiKey,
     super.baseUrl,
@@ -26,7 +50,7 @@ class GoogleMapsPlacesService extends GoogleMapsHTTPService {
   Future<http.Response> autocomplete(
     String input, {
     String? sessionToken,
-    num? offset,
+    @Deprecated('Not supported in Places API (New)') num? offset,
     LatLng? origin,
     LatLng? location,
     num? radius,
@@ -36,8 +60,6 @@ class GoogleMapsPlacesService extends GoogleMapsHTTPService {
     bool strictBounds = false,
     String? region,
   }) async {
-    const url = 'https://places.googleapis.com/v1/places:autocomplete';
-
     final body = <String, dynamic>{
       'input': input,
     };
@@ -65,6 +87,12 @@ class GoogleMapsPlacesService extends GoogleMapsHTTPService {
         },
       };
       body[strictBounds ? 'locationRestriction' : 'locationBias'] = circle;
+    } else if (location != null) {
+      developer.log(
+        'location was provided without radius — locationBias will not be sent. '
+        'Set radius to enable location biasing.',
+        name: 'place_picker_google',
+      );
     }
 
     if (origin != null) {
@@ -79,10 +107,18 @@ class GoogleMapsPlacesService extends GoogleMapsHTTPService {
     }
 
     if (components.isNotEmpty) {
-      final regionCodes = components
-          .where((c) => c.component == Component.country)
-          .map((c) => c.value)
-          .toList();
+      final regionCodes = <String>[];
+      for (final c in components) {
+        if (c.component == Component.country) {
+          regionCodes.add(c.value);
+        } else {
+          developer.log(
+            'Component type "${c.component}" is not supported in Places API (New) '
+            'and will be ignored. Only country components are supported.',
+            name: 'place_picker_google',
+          );
+        }
+      }
       if (regionCodes.isNotEmpty) {
         body['includedRegionCodes'] = regionCodes;
       }
@@ -95,18 +131,18 @@ class GoogleMapsPlacesService extends GoogleMapsHTTPService {
           'suggestions.placePrediction.structuredFormat.secondaryText',
     );
 
-    return await doPost(url, jsonEncode(body), headers: headers);
+    return doPost('$_placesBaseUrl:autocomplete', jsonEncode(body),
+        headers: headers);
   }
 
   Future<http.Response> nearbySearch(
     LatLng location, {
     num radius = 150,
     String? type,
+    @Deprecated('Not supported in Places API (New). Use type instead.')
     String? keyword,
     String? language,
   }) async {
-    const url = 'https://places.googleapis.com/v1/places:searchNearby';
-
     final body = <String, dynamic>{
       'locationRestriction': {
         'circle': {
@@ -133,7 +169,8 @@ class GoogleMapsPlacesService extends GoogleMapsHTTPService {
           'places.id,places.displayName,places.location,places.iconMaskBaseUri',
     );
 
-    return await doPost(url, jsonEncode(body), headers: headers);
+    return doPost('$_placesBaseUrl:searchNearby', jsonEncode(body),
+        headers: headers);
   }
 
   Future<http.Response> details(
@@ -143,51 +180,24 @@ class GoogleMapsPlacesService extends GoogleMapsHTTPService {
     String? language,
     String? region,
   }) async {
-    const fieldNameMap = {
-      'place_id': 'id',
-      'name': 'displayName',
-      'formatted_address': 'formattedAddress',
-      'geometry': 'location',
-      'address_component': 'addressComponents',
-      'type': 'types',
-      'formatted_phone_number': 'nationalPhoneNumber',
-      'international_phone_number': 'internationalPhoneNumber',
-      'opening_hours': 'currentOpeningHours',
-      'website': 'websiteUri',
-      'url': 'googleMapsUri',
-      'rating': 'rating',
-      'user_ratings_total': 'userRatingCount',
-      'price_level': 'priceLevel',
-      'icon': 'iconMaskBaseUri',
+    final fieldMask = fields.isNotEmpty
+        ? fields.map((f) => _legacyToNewFieldNames[f] ?? f).join(',')
+        : _defaultDetailFields;
+
+    final params = <String, String>{
+      if (sessionToken != null) 'sessionToken': sessionToken,
+      if (language != null) 'languageCode': language,
+      if (region != null) 'regionCode': region,
     };
 
-    String fieldMask;
-    if (fields.isNotEmpty) {
-      fieldMask = fields.map((f) => fieldNameMap[f] ?? f).join(',');
-    } else {
-      fieldMask = 'id,displayName,formattedAddress,location,addressComponents';
-    }
-
-    final params = <String, String>{};
-    if (sessionToken != null) {
-      params['sessionToken'] = sessionToken;
-    }
-    if (language != null) {
-      params['languageCode'] = language;
-    }
-    if (region != null) {
-      params['regionCode'] = region;
-    }
-
-    var detailsUrl = 'https://places.googleapis.com/v1/places/$placeId';
+    var detailsUri =
+        Uri.parse('$_placesBaseUrl/${Uri.encodeComponent(placeId)}');
     if (params.isNotEmpty) {
-      final queryString =
-          params.entries.map((e) => '${e.key}=${e.value}').join('&');
-      detailsUrl = '$detailsUrl?$queryString';
+      detailsUri = detailsUri.replace(queryParameters: params);
     }
 
     final headers = _buildHeaders(fieldMask: fieldMask);
 
-    return await doGet(detailsUrl, headers: headers);
+    return doGet(detailsUri.toString(), headers: headers);
   }
 }

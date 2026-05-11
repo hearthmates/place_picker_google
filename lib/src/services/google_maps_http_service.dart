@@ -4,7 +4,6 @@ import 'package:flutter/widgets.dart';
 import 'package:http/http.dart' as http;
 
 final kGMapsBaseUrl = Uri.parse('https://maps.googleapis.com/maps/api/');
-final kPlacesNewBaseUrl = Uri.parse('https://places.googleapis.com/v1/');
 
 abstract class GoogleMapsHTTPService {
   @protected
