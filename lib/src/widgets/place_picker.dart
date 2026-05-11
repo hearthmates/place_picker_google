@@ -857,10 +857,10 @@ class PlacePickerState extends State<PlacePicker>
     );
   }
 
-  /// Parses the `predictions` into `RichSuggestion` array.
+  /// Parses the `suggestions` into `RichSuggestion` array.
   List<RichSuggestion> _parseAutoCompleteSuggestions(
-      List<dynamic>? predictions) {
-    if (predictions == null || predictions.isEmpty) {
+      List<dynamic>? suggestions) {
+    if (suggestions == null || suggestions.isEmpty) {
       return [
         RichSuggestion(
           autoCompleteItem: AutoCompleteItem()
@@ -871,16 +871,25 @@ class PlacePickerState extends State<PlacePicker>
       ];
     }
 
-    return predictions.map((dynamic t) {
-      final matchedSubstring = t['matched_substrings'][0];
-      final structuredFormatting = t['structured_formatting'];
+    return suggestions.map((dynamic t) {
+      final prediction = t['placePrediction'];
+      final matches = prediction?['text']?['matches'] as List<dynamic>?;
+      final int startOffset =
+          matches != null && matches.isNotEmpty
+              ? (matches[0]['startOffset'] ?? 0) as int
+              : 0;
+      final int endOffset =
+          matches != null && matches.isNotEmpty
+              ? (matches[0]['endOffset'] ?? 0) as int
+              : 0;
+
       final aci = AutoCompleteItem()
-        ..id = t['place_id']
-        ..text = t['description']
-        ..offset = matchedSubstring['offset']
-        ..length = matchedSubstring['length']
-        ..mainText = structuredFormatting['main_text']
-        ..secondaryText = structuredFormatting['secondary_text'];
+        ..id = prediction?['placeId']
+        ..text = prediction?['text']?['text'] ?? ''
+        ..offset = startOffset
+        ..length = endOffset - startOffset
+        ..mainText = prediction?['mainText']?['text']
+        ..secondaryText = prediction?['secondaryText']?['text'];
 
       return RichSuggestion(
         autoCompleteItem: aci,
@@ -1373,12 +1382,9 @@ class PlacePickerState extends State<PlacePicker>
   /// Fetches the place autocomplete list with the query [place].
   Future<void> autoCompleteSearch(String place) async {
     try {
-      place = place.replaceAll(" ", "+");
-
       final response = await googleMapsPlacesService.autocomplete(
         place,
         sessionToken: widget.googleAPIParameters.sessionToken ?? sessionToken,
-        offset: widget.googleAPIParameters.offset,
         origin: widget.googleAPIParameters.origin,
         radius: widget.googleAPIParameters.radius,
         language: widget.googleAPIParameters.language,
@@ -1390,31 +1396,15 @@ class PlacePickerState extends State<PlacePicker>
 
       if (response.statusCode != 200) {
         throw Exception(
-            'Failed to load auto complete predictions of place: $place.');
+            'Failed to load auto complete suggestions for place: $place.');
       }
 
       final responseJson = jsonDecode(response.body);
+      final suggestions = responseJson['suggestions'] as List<dynamic>?;
 
-      final status = responseJson["status"] as String?;
-      final predictions = responseJson['predictions'] as List<dynamic>?;
-
-      if (status == PlacesAutocompleteStatus.zeroResults.status) {
-        /// Handle ZERO_RESULTS gracefully
-        displayAutoCompleteSuggestions([]);
-        debugPrint('No autocomplete predictions found for query: $place');
-        return;
-      }
-
-      if (status != PlacesAutocompleteStatus.ok.status) {
-        /// Log other non-OK statuses and clear suggestions
-        debugPrint('Google Places API returned status: $status');
-        displayAutoCompleteSuggestions([]);
-      }
-
-      final suggestions = _parseAutoCompleteSuggestions(predictions);
-      displayAutoCompleteSuggestions(suggestions);
+      final parsed = _parseAutoCompleteSuggestions(suggestions);
+      displayAutoCompleteSuggestions(parsed);
     } catch (e, stack) {
-      /// Log error and clear suggestions as fallback
       debugPrint('Error in autoCompleteSearch: $e\n$stack');
       displayAutoCompleteSuggestions([]);
     }
@@ -1443,15 +1433,16 @@ class PlacePickerState extends State<PlacePicker>
 
       final responseJson = jsonDecode(response.body);
 
-      if (responseJson['result'] == null) {
-        throw Error();
+      final location = responseJson['location'];
+      if (location == null) {
+        throw Exception(
+            'No location in response for placeId: ${autoCompleteResult.id}.');
       }
 
-      final location = responseJson['result']['geometry']['location'];
       if (mapController.isCompleted) {
-        /// remove selected nearby place
         selectedNearbyPlace = null;
-        await animateToLocation(LatLng(location['lat'], location['lng']),
+        await animateToLocation(
+            LatLng(location['latitude'], location['longitude']),
             autoCompleteResult: autoCompleteResult);
         _searchController.clear();
       }
@@ -1460,7 +1451,6 @@ class PlacePickerState extends State<PlacePicker>
     }
   }
 
-  /// Fetches and updates the nearby places to the provided lat,lng
   Future<void> _getNearbyPlaces(LatLng latLng) async {
     try {
       final response = await googleMapsPlacesService.nearbySearch(
@@ -1474,28 +1464,23 @@ class PlacePickerState extends State<PlacePicker>
       }
 
       final responseJson = jsonDecode(response.body);
-
-      if (responseJson['results'] == null) {
-        throw Future.error("No results found.");
-      }
-
-      if (responseJson["status"] != NearbySearchStatus.ok.status) {
-        Future.error(responseJson.toString());
-      }
+      final places = responseJson['places'] as List<dynamic>?;
 
       nearbyPlaces.clear();
 
-      for (Map<String, dynamic> item in responseJson['results']) {
-        final nearbyPlace = NearbyPlace(
-          name: item['name'],
-          icon: item['icon'],
-          latLng: LatLng(
-            item['geometry']['location']['lat'],
-            item['geometry']['location']['lng'],
-          ),
-        );
+      if (places != null) {
+        for (Map<String, dynamic> item in places) {
+          final nearbyPlace = NearbyPlace(
+            name: item['displayName']?['text'],
+            icon: item['iconMaskBaseUri'],
+            latLng: LatLng(
+              item['location']['latitude'],
+              item['location']['longitude'],
+            ),
+          );
 
-        nearbyPlaces.add(nearbyPlace);
+          nearbyPlaces.add(nearbyPlace);
+        }
       }
     } catch (e) {
       ///

@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:http/http.dart' as http;
 
@@ -13,195 +15,179 @@ class GoogleMapsPlacesService extends GoogleMapsHTTPService {
     super.apiPath = 'place/',
   });
 
+  Map<String, String> _buildHeaders({String? fieldMask}) {
+    return {
+      if (apiHeaders != null) ...apiHeaders!,
+      if (apiKey != null) 'X-Goog-Api-Key': apiKey!,
+      if (fieldMask != null) 'X-Goog-FieldMask': fieldMask,
+    };
+  }
+
   Future<http.Response> autocomplete(
-    /// final String input,
     String input, {
-    /// Session token for Google Places API
     String? sessionToken,
-
-    /// Offset for pagination of results
-    /// offset: int,
     num? offset,
-
-    /// Origin location for calculating distance from results
-    /// origin: Location(lat: -33.852, lng: 151.211),
     LatLng? origin,
-
-    /// Location bounds for restricting results to a radius around a location
-    /// location: Location(lat: -33.867, lng: 151.195)
     LatLng? location,
-
-    /// Radius for restricting results to a radius around a location
-    /// radius: Radius in meters
     num? radius,
-
-    /// Language code for Places API results
-    /// language: 'en',
     String? language,
-
-    /// Types for restricting results to a set of place types
     List<String> types = const [],
     List<Component> components = const [],
-
-    /// Bounds for restricting results to a set of bounds
     bool strictBounds = false,
-
-    /// Region for restricting results to a set of regions
-    /// region: "us"
     String? region,
   }) async {
-    final params = <String, String>{
+    const url = 'https://places.googleapis.com/v1/places:autocomplete';
+
+    final body = <String, dynamic>{
       'input': input,
     };
 
+    if (sessionToken != null) {
+      body['sessionToken'] = sessionToken;
+    }
+
     if (language != null) {
-      params['language'] = language;
+      body['languageCode'] = language;
+    }
+
+    if (region != null) {
+      body['regionCode'] = region;
+    }
+
+    if (location != null && radius != null) {
+      final circle = {
+        'circle': {
+          'center': {
+            'latitude': location.latitude,
+            'longitude': location.longitude,
+          },
+          'radius': radius.toDouble(),
+        },
+      };
+      body[strictBounds ? 'locationRestriction' : 'locationBias'] = circle;
     }
 
     if (origin != null) {
-      params['origin'] = origin.toString();
-    }
-
-    if (location != null) {
-      params['location'] = '${location.latitude},${location.longitude}';
-    }
-
-    if (radius != null) {
-      params['radius'] = radius.toString();
+      body['origin'] = {
+        'latitude': origin.latitude,
+        'longitude': origin.longitude,
+      };
     }
 
     if (types.isNotEmpty) {
-      params['types'] = types.join('|');
+      body['includedPrimaryTypes'] = types;
     }
 
     if (components.isNotEmpty) {
-      params['components'] = components.join('|');
+      final regionCodes = components
+          .where((c) => c.component == Component.country)
+          .map((c) => c.value)
+          .toList();
+      if (regionCodes.isNotEmpty) {
+        body['includedRegionCodes'] = regionCodes;
+      }
     }
 
-    if (strictBounds) {
-      params['strictbounds'] = strictBounds.toString();
-    }
+    final headers = _buildHeaders(
+      fieldMask: 'suggestions.placePrediction.placeId,'
+          'suggestions.placePrediction.text,'
+          'suggestions.placePrediction.mainText,'
+          'suggestions.placePrediction.secondaryText',
+    );
 
-    if (offset != null) {
-      params['offset'] = offset.toString();
-    }
-
-    if (region != null) {
-      params['region'] = region;
-    }
-
-    if (apiKey != null) {
-      params['key'] = apiKey!;
-    }
-
-    if (sessionToken != null) {
-      params['sessiontoken'] = sessionToken;
-    }
-
-    final autocompleteUrl = url
-        .replace(
-          path: '${url.path}autocomplete/json',
-          queryParameters: params,
-        )
-        .toString();
-
-    return await doGet(autocompleteUrl, headers: apiHeaders);
+    return await doPost(url, jsonEncode(body), headers: headers);
   }
 
   Future<http.Response> nearbySearch(
-    /// Location bounds for restricting results to a radius around a location
-    /// location: Location(lat: -33.867, lng: 151.195)
     LatLng location, {
-    /// Radius for restricting results to a radius around a location
-    /// radius: Radius in meters
     num radius = 150,
-
-    /// Type for restricting results to a set of place types
     String? type,
     String? keyword,
-
-    /// Language code for Places API results
-    /// language: 'en',
     String? language,
   }) async {
-    final params = <String, String>{};
+    const url = 'https://places.googleapis.com/v1/places:searchNearby';
 
-    if (apiKey != null) {
-      params['key'] = apiKey!;
-    }
-
-    params['location'] = '${location.latitude},${location.longitude}';
-    params['radius'] = radius.toString();
-
-    if (keyword != null) {
-      params['keyword'] = keyword;
-    }
+    final body = <String, dynamic>{
+      'locationRestriction': {
+        'circle': {
+          'center': {
+            'latitude': location.latitude,
+            'longitude': location.longitude,
+          },
+          'radius': radius.toDouble(),
+        },
+      },
+      'maxResultCount': 20,
+    };
 
     if (type != null) {
-      params['type'] = type;
+      body['includedTypes'] = [type];
     }
 
     if (language != null) {
-      params['language'] = language;
+      body['languageCode'] = language;
     }
 
-    final nearbySearchUrl = url
-        .replace(
-          path: '${url.path}nearbysearch/json',
-          queryParameters: params,
-        )
-        .toString();
+    final headers = _buildHeaders(
+      fieldMask:
+          'places.id,places.displayName,places.location,places.iconMaskBaseUri',
+    );
 
-    return await doGet(nearbySearchUrl, headers: apiHeaders);
+    return await doPost(url, jsonEncode(body), headers: headers);
   }
 
   Future<http.Response> details(
-    /// Place ID provided google to decode and get the details.
-    /// A textual identifier that uniquely identifies a place, returned from a Place Search.
     String placeId, {
-    /// Session token for Google Places API
     String? sessionToken,
     List<String> fields = const [],
-
-    /// Language code for Places API results
-    /// language: 'en',
     String? language,
-
-    /// Region for restricting results to a set of regions
-    /// region: "us"
     String? region,
   }) async {
-    final params = <String, String>{};
+    const fieldNameMap = {
+      'place_id': 'id',
+      'name': 'displayName',
+      'formatted_address': 'formattedAddress',
+      'geometry': 'location',
+      'address_component': 'addressComponents',
+      'type': 'types',
+      'formatted_phone_number': 'nationalPhoneNumber',
+      'international_phone_number': 'internationalPhoneNumber',
+      'opening_hours': 'currentOpeningHours',
+      'website': 'websiteUri',
+      'url': 'googleMapsUri',
+      'rating': 'rating',
+      'user_ratings_total': 'userRatingCount',
+      'price_level': 'priceLevel',
+      'icon': 'iconMaskBaseUri',
+    };
 
-    if (apiKey != null) {
-      params['key'] = apiKey!;
-    }
-
-    params['placeid'] = placeId;
-
-    if (language != null) {
-      params['language'] = language;
-    }
-
-    if (region != null) {
-      params['region'] = region;
-    }
-
+    String fieldMask;
     if (fields.isNotEmpty) {
-      params['fields'] = fields.join(',');
+      fieldMask = fields.map((f) => fieldNameMap[f] ?? f).join(',');
+    } else {
+      fieldMask = 'id,displayName,formattedAddress,location,addressComponents';
     }
 
+    final params = <String, String>{};
     if (sessionToken != null) {
-      params['sessiontoken'] = sessionToken;
+      params['sessionToken'] = sessionToken;
+    }
+    if (language != null) {
+      params['languageCode'] = language;
+    }
+    if (region != null) {
+      params['regionCode'] = region;
     }
 
-    final detailsUrl = url
-        .replace(
-          path: '${url.path}details/json',
-          queryParameters: params,
-        )
-        .toString();
+    var detailsUrl = 'https://places.googleapis.com/v1/places/$placeId';
+    if (params.isNotEmpty) {
+      final queryString =
+          params.entries.map((e) => '${e.key}=${e.value}').join('&');
+      detailsUrl = '$detailsUrl?$queryString';
+    }
 
-    return await doGet(detailsUrl, headers: apiHeaders);
+    final headers = _buildHeaders(fieldMask: fieldMask);
+
+    return await doGet(detailsUrl, headers: headers);
   }
 }
