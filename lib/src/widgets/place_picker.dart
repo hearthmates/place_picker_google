@@ -1480,6 +1480,7 @@ class PlacePickerState extends State<PlacePicker>
           nearbyPlaces.add(NearbyPlace(
             name: item['displayName']?['text'],
             icon: iconBaseUri != null ? '$iconBaseUri.png' : null,
+            iconBackgroundColor: item['iconBackgroundColor'] as String?,
             latLng: LatLng(
               location['latitude'],
               location['longitude'],

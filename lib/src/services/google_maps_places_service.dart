@@ -166,7 +166,7 @@ class GoogleMapsPlacesService extends GoogleMapsHTTPService {
 
     final headers = _buildHeaders(
       fieldMask:
-          'places.id,places.displayName,places.location,places.iconMaskBaseUri',
+          'places.id,places.displayName,places.location,places.iconMaskBaseUri,places.iconBackgroundColor',
     );
 
     return doPost('$_placesBaseUrl:searchNearby', jsonEncode(body),

@@ -288,7 +288,7 @@ void main() {
       final mockClient = MockClient((request) async {
         expect(
           request.headers['X-Goog-FieldMask'],
-          'places.id,places.displayName,places.location,places.iconMaskBaseUri',
+          'places.id,places.displayName,places.location,places.iconMaskBaseUri,places.iconBackgroundColor',
         );
         return http.Response('{}', 200);
       });
