@@ -42,16 +42,17 @@ class NearbyPlaceItem extends StatelessWidget {
       return _fallbackIcon;
     }
 
+    final bgColor = _parseHexColor(nearbyPlace.iconBackgroundColor);
+
     final iconImage = Image.network(
       nearbyPlace.icon!,
       width: 16,
       height: 16,
-      color: Colors.white,
+      color: bgColor != null ? Colors.white : null,
       errorBuilder: (_, __, ___) => _fallbackIcon,
     );
 
-    final bgColor = _parseHexColor(nearbyPlace.iconBackgroundColor);
-    if (bgColor == null) return _fallbackIcon;
+    if (bgColor == null) return iconImage;
 
     return Container(
       width: 24,
@@ -68,10 +69,8 @@ class NearbyPlaceItem extends StatelessWidget {
   static Color? _parseHexColor(String? hex) {
     if (hex == null || hex.isEmpty) return null;
     final digits = hex.startsWith('#') ? hex.substring(1) : hex;
-    final buffer = StringBuffer();
-    if (digits.length == 6) buffer.write('FF');
-    buffer.write(digits);
-    final value = int.tryParse(buffer.toString(), radix: 16);
+    final withAlpha = digits.length == 6 ? 'FF$digits' : digits;
+    final value = int.tryParse(withAlpha, radix: 16);
     return value != null ? Color(value) : null;
   }
 }

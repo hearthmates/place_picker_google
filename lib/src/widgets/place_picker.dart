@@ -873,16 +873,17 @@ class PlacePickerState extends State<PlacePicker>
 
     return suggestions.map((dynamic t) {
       final prediction = t['placePrediction'] as Map<String, dynamic>?;
-      final firstMatch = (prediction?['text']?['matches'] as List<dynamic>?)
-          ?.firstOrNull as Map<String, dynamic>?;
-      final startOffset = (firstMatch?['startOffset'] ?? 0) as int;
-      final endOffset = (firstMatch?['endOffset'] ?? 0) as int;
+      final textField = prediction?['text'] as Map<String, dynamic>?;
+      final matches = textField?['matches'] as List<dynamic>?;
+      final firstMatch = matches?.firstOrNull as Map<String, dynamic>?;
+      final startOffset = firstMatch?['startOffset'] as int? ?? 0;
+      final endOffset = firstMatch?['endOffset'] as int? ?? 0;
       final structuredFormat =
           prediction?['structuredFormat'] as Map<String, dynamic>?;
 
       final aci = AutoCompleteItem()
         ..id = prediction?['placeId']
-        ..text = prediction?['text']?['text'] ?? ''
+        ..text = textField?['text'] as String? ?? ''
         ..offset = startOffset
         ..length = endOffset - startOffset
         ..mainText = structuredFormat?['mainText']?['text']
@@ -1472,7 +1473,8 @@ class PlacePickerState extends State<PlacePicker>
       nearbyPlaces.clear();
 
       if (places != null) {
-        for (final item in places.cast<Map<String, dynamic>>()) {
+        for (final entry in places) {
+          final item = entry as Map<String, dynamic>;
           final iconBaseUri = item['iconMaskBaseUri'] as String?;
           final location = item['location'] as Map<String, dynamic>?;
           if (location == null) continue;

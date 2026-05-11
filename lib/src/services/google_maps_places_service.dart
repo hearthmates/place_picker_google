@@ -48,7 +48,7 @@ class GoogleMapsPlacesService extends GoogleMapsHTTPService {
     super.baseUrl,
     super.httpClient,
     super.apiHeaders,
-    super.apiPath = 'place/',
+    super.apiPath = '',
   });
 
   Map<String, String> _buildHeaders({String? fieldMask}) {
@@ -124,18 +124,21 @@ class GoogleMapsPlacesService extends GoogleMapsHTTPService {
     }
 
     if (components.isNotEmpty) {
-      final regionCodes = <String>[];
-      for (final c in components) {
-        if (c.component == Component.country) {
-          regionCodes.add(c.value);
-        } else {
-          developer.log(
-            'Component type "${c.component}" is not supported in Places API (New) '
-            'and will be ignored. Only country components are supported.',
-            name: 'place_picker_google',
-          );
-        }
+      final unsupported = components
+          .where((c) => c.component != Component.country)
+          .map((c) => c.component);
+      for (final type in unsupported) {
+        developer.log(
+          'Component type "$type" is not supported in Places API (New) '
+          'and will be ignored. Only country components are supported.',
+          name: 'place_picker_google',
+        );
       }
+
+      final regionCodes = components
+          .where((c) => c.component == Component.country)
+          .map((c) => c.value)
+          .toList();
       if (regionCodes.isNotEmpty) {
         body['includedRegionCodes'] = regionCodes;
       }
