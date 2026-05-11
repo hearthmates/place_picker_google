@@ -192,6 +192,83 @@ void main() {
 
       await service.autocomplete('pizza', offset: 3);
     });
+
+    test('does not send locationBias when location provided without radius',
+        () async {
+      final mockClient = MockClient((request) async {
+        final body = jsonDecode(request.body) as Map<String, dynamic>;
+        expect(body.containsKey('locationBias'), isFalse);
+        expect(body.containsKey('locationRestriction'), isFalse);
+        return http.Response('{}', 200);
+      });
+
+      final service = GoogleMapsPlacesService(
+        apiKey: apiKey,
+        httpClient: mockClient,
+      );
+
+      await service.autocomplete(
+        'pizza',
+        location: const LatLng(37.7749, -122.4194),
+      );
+    });
+
+    test('excludes non-country components from body', () async {
+      final mockClient = MockClient((request) async {
+        final body = jsonDecode(request.body) as Map<String, dynamic>;
+        expect(body['includedRegionCodes'], ['us']);
+        return http.Response('{}', 200);
+      });
+
+      final service = GoogleMapsPlacesService(
+        apiKey: apiKey,
+        httpClient: mockClient,
+      );
+
+      await service.autocomplete(
+        'pizza',
+        components: [
+          const Component(Component.country, 'us'),
+          const Component(Component.locality, 'new york'),
+          const Component(Component.postalCode, '10001'),
+        ],
+      );
+    });
+
+    test('does not send includedRegionCodes when only non-country components',
+        () async {
+      final mockClient = MockClient((request) async {
+        final body = jsonDecode(request.body) as Map<String, dynamic>;
+        expect(body.containsKey('includedRegionCodes'), isFalse);
+        return http.Response('{}', 200);
+      });
+
+      final service = GoogleMapsPlacesService(
+        apiKey: apiKey,
+        httpClient: mockClient,
+      );
+
+      await service.autocomplete(
+        'pizza',
+        components: [
+          const Component(Component.locality, 'new york'),
+        ],
+      );
+    });
+
+    test('returns error response without throwing', () async {
+      final mockClient = MockClient((request) async {
+        return http.Response('{"error": "INVALID_REQUEST"}', 400);
+      });
+
+      final service = GoogleMapsPlacesService(
+        apiKey: apiKey,
+        httpClient: mockClient,
+      );
+
+      final response = await service.autocomplete('');
+      expect(response.statusCode, 400);
+    });
   });
 
   group('GoogleMapsPlacesService.nearbySearch()', () {
@@ -300,6 +377,41 @@ void main() {
 
       await service.nearbySearch(const LatLng(37.7749, -122.4194));
     });
+
+    test('uses custom radius when provided', () async {
+      final mockClient = MockClient((request) async {
+        final body = jsonDecode(request.body) as Map<String, dynamic>;
+        final circle =
+            body['locationRestriction']['circle'] as Map<String, dynamic>;
+        expect(circle['radius'], 500.0);
+        return http.Response('{}', 200);
+      });
+
+      final service = GoogleMapsPlacesService(
+        apiKey: apiKey,
+        httpClient: mockClient,
+      );
+
+      await service.nearbySearch(
+        const LatLng(37.7749, -122.4194),
+        radius: 500,
+      );
+    });
+
+    test('returns error response without throwing', () async {
+      final mockClient = MockClient((request) async {
+        return http.Response('{"error": "INVALID_REQUEST"}', 400);
+      });
+
+      final service = GoogleMapsPlacesService(
+        apiKey: apiKey,
+        httpClient: mockClient,
+      );
+
+      final response =
+          await service.nearbySearch(const LatLng(37.7749, -122.4194));
+      expect(response.statusCode, 400);
+    });
   });
 
   group('GoogleMapsPlacesService.details()', () {
@@ -395,6 +507,49 @@ void main() {
         language: 'en',
         region: 'us',
       );
+    });
+
+    test('does not append query string when no optional params provided',
+        () async {
+      final mockClient = MockClient((request) async {
+        expect(request.url.query, isEmpty);
+        return http.Response('{}', 200);
+      });
+
+      final service = GoogleMapsPlacesService(
+        apiKey: apiKey,
+        httpClient: mockClient,
+      );
+
+      await service.details(placeId);
+    });
+
+    test('URL-encodes special characters in placeId', () async {
+      final mockClient = MockClient((request) async {
+        expect(request.url.path, contains(Uri.encodeComponent('place/id#1')));
+        return http.Response('{}', 200);
+      });
+
+      final service = GoogleMapsPlacesService(
+        apiKey: apiKey,
+        httpClient: mockClient,
+      );
+
+      await service.details('place/id#1');
+    });
+
+    test('returns error response without throwing', () async {
+      final mockClient = MockClient((request) async {
+        return http.Response('{"error": "NOT_FOUND"}', 404);
+      });
+
+      final service = GoogleMapsPlacesService(
+        apiKey: apiKey,
+        httpClient: mockClient,
+      );
+
+      final response = await service.details('nonexistent-place');
+      expect(response.statusCode, 404);
     });
   });
 }
