@@ -51,8 +51,8 @@ void main() {
           request.headers['X-Goog-FieldMask'],
           'suggestions.placePrediction.placeId,'
           'suggestions.placePrediction.text,'
-          'suggestions.placePrediction.mainText,'
-          'suggestions.placePrediction.secondaryText',
+          'suggestions.placePrediction.structuredFormat.mainText,'
+          'suggestions.placePrediction.structuredFormat.secondaryText',
         );
         return http.Response('{}', 200);
       });
